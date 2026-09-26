@@ -1,3 +1,4 @@
-* text=auto eol=lf
-*.wasm binary
-*.ico binary
+# site/ is released byte-for-byte and verified against site.lock.json: no EOL
+# conversion, or the CRLF files the hub serves stop matching their pinned sha256.
+site/** -text
+site.lock.json -text
