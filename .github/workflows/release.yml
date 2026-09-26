@@ -1,0 +1,57 @@
+# Release workflow for the public template repository.
+# Install as .github/workflows/release.yml. On a tag v*, builds the site from the
+# published hub, verified byte-for-byte against manifest.lock.json (never
+# --update-lock here), and attaches dist/site.tar.gz to a NEW release for that tag.
+# Spaces download releases/latest/download/site.tar.gz on every deploy.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+        with:
+          node-version: '20'
+
+      - name: Build site.tar.gz
+        run: bash build.sh --from-origin https://elysium.aitherium.com
+
+      - name: Smoke-test the tarball
+        run: |
+          mkdir -p "$RUNNER_TEMP/site"
+          tar -xzf dist/site.tar.gz -C "$RUNNER_TEMP/site"
+          test -f "$RUNNER_TEMP/site/index.html"
+          test -f "$RUNNER_TEMP/site/chat.html"
+          test -f "$RUNNER_TEMP/site/space.js"
+          test -d "$RUNNER_TEMP/site/workers"
+
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          # A published tag is immutable: Spaces may already be serving its bytes.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "release $TAG already exists; cut a new tag instead" >&2
+            exit 1
+          fi
+          gh release create "$TAG" dist/site.tar.gz --title "$TAG" \
+            --notes "Elysium site bundle. Extract into the site directory, then add aither.config.json beside index.html."
