@@ -78,11 +78,26 @@
       accentColor: HEX.test(raw.accentColor || '') ? raw.accentColor : DEFAULTS.accentColor,
       agentName: text(raw.agentName, 40, DEFAULTS.agentName),
       apiBase: httpsUrl(raw.apiBase, DEFAULTS.apiBase),
-      basePath: basePath(raw.basePath)
+      basePath: basePath(raw.basePath),
+      // 'chat' opens GobboNet's chat directly instead of the Elysium hub.
+      start: raw.start === 'chat' ? 'chat' : 'hub'
     };
   }
 
+  // A GobboNet Space (start: 'chat') lands on the chat, not the hub. Only the hub's
+  // own index page redirects, and only to the sibling chat.html (never off-site).
+  function startPage(cfg) {
+    if (cfg.start !== 'chat') return false;
+    var p = window.location.pathname;
+    if (/\/(index\.html)?$/.test(p)) {
+      window.location.replace(p.replace(/(index\.html)?$/, 'chat.html'));
+      return true;
+    }
+    return false;
+  }
+
   function apply(cfg) {
+    if (startPage(cfg)) return;
     window.AITHER_SPACE = cfg;
     var root = document.documentElement;
     root.style.setProperty('--space-accent', cfg.accentColor);
