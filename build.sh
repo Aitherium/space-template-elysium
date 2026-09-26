@@ -27,6 +27,7 @@ LOCK="$HERE/manifest.lock.json"
 ORIGIN="https://elysium.aitherium.com"
 FROM_DIR=""
 UPDATE_LOCK=0
+VENDOR=0
 ESBUILD="esbuild@0.24.2"
 
 while [ $# -gt 0 ]; do
@@ -34,6 +35,7 @@ while [ $# -gt 0 ]; do
     --from-origin) ORIGIN="${2:?--from-origin needs a URL}"; FROM_DIR=""; shift 2 ;;
     --from-dir) FROM_DIR="${2:?--from-dir needs a directory}"; shift 2 ;;
     --update-lock) UPDATE_LOCK=1; shift ;;
+    --vendor) VENDOR=1; shift ;;
     -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
@@ -128,4 +130,16 @@ echo "[elysium] comments stripped from ${#scripts[@]} script(s)"
 "$PY" "$HERE/space/patch.py" --scan "$SITE"
 
 tar -czf "$DIST/site.tar.gz" -C "$SITE" .
+
+# --vendor: commit the FINISHED site into the template repo. GitHub-hosted runners
+# get HTTP 403 from every aitherium.com host (Cloudflare, measured 2026-09-26), so
+# the release workflow cannot fetch the hub; it packs this reviewed tree instead,
+# checked file-by-file against site.lock.json. The raw hub is never committed:
+# it still carries the comments and local-node probes the steps above remove.
+if [ "$VENDOR" = 1 ]; then
+  rm -rf "$HERE/site"
+  cp -R "$SITE" "$HERE/site"
+  "$PY" "$HERE/space/lock.py" write "$HERE/site.lock.json" "$HERE/site"
+  echo "[elysium] vendored the finished site into site/ ($(find "$HERE/site" -type f | wc -l) files)"
+fi
 echo "[elysium] wrote $DIST/site.tar.gz ($(wc -c < "$DIST/site.tar.gz") bytes, $(find "$SITE" -type f | wc -l) files)"

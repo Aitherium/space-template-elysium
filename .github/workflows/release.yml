@@ -1,7 +1,10 @@
 # Release workflow for the public template repository.
-# Install as .github/workflows/release.yml. On a tag v*, builds the site from the
-# published hub, verified byte-for-byte against manifest.lock.json (never
-# --update-lock here), and attaches dist/site.tar.gz to a NEW release for that tag.
+# Install as .github/workflows/release.yml. On a tag v*, packs the committed site/
+# (produced on a maintainer machine by `build.sh --vendor`, which verifies the hub
+# against manifest.lock.json) after checking every file against site.lock.json and
+# re-running the leak scan. No network: GitHub-hosted runners get HTTP 403 from
+# every aitherium.com host (measured 2026-09-26). Attaches site.tar.gz to a NEW
+# release for that tag.
 # Spaces download releases/latest/download/site.tar.gz on every deploy.
 name: release
 
@@ -26,12 +29,12 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
-        with:
-          node-version: '20'
-
-      - name: Build site.tar.gz
-        run: bash build.sh --from-origin https://elysium.aitherium.com
+      - name: Verify the committed site and pack it
+        run: |
+          python3 space/lock.py verify site.lock.json site
+          python3 space/patch.py --scan site
+          mkdir -p dist
+          tar -czf dist/site.tar.gz -C site .
 
       - name: Smoke-test the tarball
         run: |
